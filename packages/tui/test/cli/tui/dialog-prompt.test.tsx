@@ -1,11 +1,10 @@
 /** @jsxImportSource @opentui/solid */
 import { TextareaRenderable } from "@opentui/core"
-import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
-import { testRender, useRenderer } from "@opentui/solid"
+import { testRender } from "@opentui/solid"
 import { expect, test } from "bun:test"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
-import { onCleanup } from "solid-js"
+import { onMount } from "solid-js"
 import { tmpdir } from "../../fixture/fixture"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
 import type { TuiKeybind } from "../../../src/config/keybind"
@@ -28,30 +27,36 @@ async function mountPrompt(input: {
   await mkdir(state, { recursive: true })
 
   const [
-    { DialogProvider },
+    { DialogProvider, useDialog },
     { DialogPrompt },
     { ThemeProvider },
     { ConfigProvider },
     { ToastProvider },
-    { OpencodeKeymapProvider, registerOpencodeKeymap },
+    { Keymap },
   ] = await Promise.all([
     import("../../../src/ui/dialog"),
     import("../../../src/ui/dialog-prompt"),
     import("../../../src/context/theme"),
     import("../../../src/config"),
     import("../../../src/ui/toast"),
-    import("../../../src/keymap"),
+    import("../../../src/context/keymap"),
   ])
 
   function Harness() {
-    const renderer = useRenderer()
-    const keymap = createDefaultOpenTuiKeymap(renderer)
     const resolvedConfig = createTuiResolvedConfig({
       keybinds: input.keybinds,
       leader: { timeout: 1000 },
     })
-    const off = registerOpencodeKeymap(keymap, renderer, resolvedConfig)
-    onCleanup(off)
+
+    function Fixture() {
+      const dialog = useDialog()
+      onMount(() =>
+        dialog.replace(() => (
+          <DialogPrompt title="Rename Session" value="draft" onConfirm={input.onConfirm} />
+        )),
+      )
+      return null
+    }
 
     return (
       <TestTuiContexts
@@ -62,17 +67,17 @@ async function mountPrompt(input: {
           worktree: input.root,
         }}
       >
-        <OpencodeKeymapProvider keymap={keymap}>
-          <ConfigProvider config={resolvedConfig}>
+        <ConfigProvider config={resolvedConfig}>
+          <Keymap.Provider>
             <ThemeProvider mode="dark">
               <ToastProvider>
                 <DialogProvider>
-                  <DialogPrompt title="Rename Session" value="draft" onConfirm={input.onConfirm} />
+                  <Fixture />
                 </DialogProvider>
               </ToastProvider>
             </ThemeProvider>
-          </ConfigProvider>
-        </OpencodeKeymapProvider>
+          </Keymap.Provider>
+        </ConfigProvider>
       </TestTuiContexts>
     )
   }
